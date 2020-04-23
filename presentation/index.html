@@ -1,0 +1,517 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>Growing our GraphQL Services</title>
+
+		<link rel="stylesheet" href="css/reset.css">
+		<link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme/night.css" id="theme">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/monokai.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+        <section data-markdown>
+          <textarea data-template>
+            # Growing our GraphQL Services
+
+            ### Jim Connell
+          </textarea>
+        </section>
+
+        <section data-markdown>
+          <textarea data-template>
+            ### Topics
+
+            - Build a simple Meetup Graph <!-- .element: class="fragment" -->
+            - Make our graph increasingly modular <!-- .element: class="fragment" -->
+          </textarea>
+        </section>
+
+        <section>
+          <h2>Simple Meetup Graph</h2>
+        </section>
+
+        <section>
+          <h3>Simple Meetup Graph</h3>
+          <ul>
+            <li class="fragment"><strong>Members</strong> are our users</li>
+            <li class="fragment">A <strong>Member</strong> can host an <strong>Event</strong></li>
+            <li class="fragment"><strong>Members</strong> can have <strong>RSVPs</strong> to <strong>Events</strong></li>
+          </ul>
+        </section>
+
+        <section data-markdown>
+          <textarea data-template>
+            ### A simple story
+
+            As a **member** viewing an **event** \
+            I wish to see my upcoming **RSVPs** \
+            So, I can see if there's a conflict with the **event**.
+          </textarea>
+        </section>
+
+				<section>
+					<h3>Simplified Query</h3>
+					<pre><code data-line-numbers="0|4-6|10|12-16">
+query getEventPageData($id: ID!) {
+    me {
+        rsvps {
+            event { title dateTime }
+        }
+    }
+    event(id: $id) {
+        title
+        host { name email photoUrl }
+        dateTime
+        rsvps {
+            member {
+              id name email photoUrl
+            }
+        }
+    }
+}
+					</code></pre>
+        </section>
+
+				<section>
+            <h3>A simple model for such a system</h3>
+            <ul>
+                <li class="fragment">3 database tables: <strong>Member</strong>, <strong>Event</strong>, <strong>RSVP</strong></li>
+                <li class="fragment">Entities are accessed via Services</li>
+                <li class="fragment">Services objects that execute queries and serialize data</li>
+                <li class="fragment">Single graphql server for schema</li>
+            </ul>
+        </section>
+
+        <section>
+          <h3>Let's Implement the...</h3>
+          <ul>
+            <li class="fragment">GraphQL schema</li>
+            <li class="fragment">JavaScript resolver code</li>
+          </ul>
+        </section>
+
+        <section>
+            <h3>Member Schema</h3>
+            <pre><code class="hljs" data-line-numbers="0|4|13">
+const typeDefs = gql`
+  type Query {
+    me: Member
+  }
+
+  type Member {
+    id: ID!
+    name: String
+    email: String
+    photoUrl: String
+
+    rsvps: [Rsvp]
+  }
+`;
+            </code></pre>
+        </section>
+        <section>
+            <h3>Member Resolvers</h3>
+            <pre><code class="hljs"  data-line-numbers="0|4|8-9">
+const resolvers = {
+  Query: {
+    me: () => memberService.get('1'),
+    member: (_, args) => memberService.get(args.id),
+  },
+  Member: {
+    rsvps: ({ id: userId }) =>
+      rsvpService.getRsvpsForUser(userId),
+  }
+};
+            </code></pre>
+        </section>
+        <section>
+            <h3>Event Schema</h3>
+            <pre><code class="hljs" data-line-numbers="0|12">
+const typeDefs = gql`
+  type Query {
+    event(id: ID!): Event
+  }
+
+  type Event {
+    id: ID!
+    title: String
+    host: Member
+
+    rsvps: [Rsvp]
+  }
+`;
+            </code></pre>
+        </section>
+        <section>
+          <h3>Event Resolvers</h3>
+          <pre><code class="hljs" data-line-numbers="0|7-8">
+const resolvers = {
+  Query: {
+    event: (_, args) => eventService.get(args.id),
+  },
+  Event: {
+    rsvps: ({ id }) => rsvpService.getRsvpsForEvent(id),
+  }
+};
+          </code></pre>
+        </section>
+        <section>
+            <h3>RSVP Schema</h3>
+            <pre><code class="hljs">
+const typeDefs = gql`
+  type Query {
+    rsvp(id: String!): Event
+  }
+
+  type Rsvp {
+    id: ID!
+    member: Member!
+    event: Event!
+  }
+`;
+            </code></pre>
+        </section>
+        <section>
+          <h3>RSVP Resolvers</h3>
+          <pre><code class="hljs" data-line-numbers="0|7-8|9-10">
+const resolvers = {
+  Query: {
+    rsvp: (_, args) => rsvpService.get(args.id),
+  },
+  Rsvp: {
+    member: ({ member: { id: memberId } }) =>
+      memberService.get(memberId),
+    event: ({ event: { id: eventId } }) =>
+      eventService.get(eventId),
+  }
+};
+          </code></pre>
+        </section>
+
+        <section>
+          <h3>Benefits</h3>
+          <ul>
+              <li class="fragment">Seems like a clean separation</li>
+              <li class="fragment">Resolvers look exactly like schema</li>
+          </ul>
+        </section>
+
+				<section>
+          <h3>Some drawbacks</h3>
+          <ul>
+              <li class="fragment">Resolvers rely on unrelated entity services</li>
+              <li class="fragment">Hard for teams to implment graph independently</li>
+              <li class="fragment">As system grows, so does a big ball of mud</li>
+          </ul>
+        </section>
+
+				<section>
+          <h3>Better Options?</h3>
+          <ol>
+              <li class="fragment">Package resolvers by entity type together</li>
+              <li class="fragment">Use GraphQL federation</li>
+          </ol>
+        </section>
+
+				<section>
+          <h2>Package by entity</h2>
+        </section>
+
+        <section>
+          <h3>Previous Member Schema</h3>
+          <pre><code class="hljs" data-line-numbers="0|13">
+const typeDefs = gql`
+  type Query {
+    me: Member
+  }
+
+  type Member {
+    id: ID!
+    name: String
+    email: String
+    photoUrl: String
+
+    rsvps: [Rsvp]
+  }
+`;
+          </code></pre>
+        </section>
+
+        <section>
+          <h3>Packaged Entity RSVP Schema</h3>
+          <pre><code data-line-numbers="0|9-11|12-14">
+const typeDefs = gql`
+  # Query { ... }
+  type Rsvp {
+    id: ID!
+    member: Member!
+    event: Event!
+  }
+  extend type Member {
+    rsvps: [Rsvp]
+  }
+  extend type Event {
+    rsvps: [Rsvp]
+  }
+`;
+          </code></pre>
+      </section>
+
+        <section>
+          <h3>RSVP Package by Entity</h3>
+          <pre><code class="hljs" data-line-numbers="0|6-8|9-11">
+const resolvers = {
+  Query: {
+    rsvp: (_, args) => rsvpService.get(args.id),
+  },
+  Member: {
+    rsvps: ({ id }) => rsvpService.getRsvpsForUser(id),
+  },
+  Event: {
+    rsvps: ({ id }) => rsvpService.getRsvpsForEvent(id),
+  }
+};
+          </code></pre>
+        </section>
+
+        <section>
+          <h3>Member Package by Entity</h3>
+          <pre><code class="hljs" data-line-numbers="0|8-9">
+const resolvers = {
+  Query: {
+    me: () => memberService.get('1'),
+    member: (_, args) => memberService.get(args.id),
+  },
+  Rsvp: {
+    member: ({ member: { id: memberId } }) =>
+      memberService.get(memberId),
+  }
+};
+          </code></pre>
+        </section>
+
+        <section>
+          <h3>Benefits</h3>
+          <ol>
+              <li class="fragment">Keeps resolvers organized by queried entity</li>
+              <li class="fragment">Makes it easier for teams work independently</li>
+              <li class="fragment">Resolvers could be grouped by module
+                <ul>
+                  <li class="fragment">Think of resolvers as <strong>Bounded Contexts</strong></li>
+                </ul>
+              </li>
+          </ol>
+        </section>
+
+        <section>
+          <h3>Drawbacks</h3>
+          <ol>
+              <li class="fragment">Resolvers "know" about other types
+                <ul>
+                  <li class="fragment"><strong>Member</strong> knows <strong>Rsvp</strong> can have a member</li>
+                </ul>
+              </li>
+              <li class="fragment">Eventually we can end up large monolithic server
+                <ul>
+                  <li class="fragment">Not horrible early-on though</li>
+                  <li class="fragment">Fairly easy to migrate resolvers to a <strong>federation</strong></li>
+                </ul>
+              </li>
+          </ol>
+        </section>
+
+        <section>
+          <h2>Federated GraphQL</h2>
+        </section>
+
+        <section>
+          <h3>Federated GraphQL</h3>
+          <ol>
+              <li class="fragment">Distributes portions of Graph over distinct microservices
+              <li class="fragment">Each microservice contributes to parts of graph</li>
+              <li class="fragment">A <strong>Gateway</strong> provides a composite view for clients</li>
+          </ol>
+        </section>
+
+        <section>
+          <h3>Member Schema</h3>
+          <pre><code class="hljs" data-line-numbers="0|7">
+const typeDefs = gql`
+  extend type Query {
+    me: Member
+  }
+
+  type Member @key(fields: "id") {
+    id: ID!
+    name: String
+    email: String
+    photoUrl: String
+  }
+`;
+          </code></pre>
+        </section>
+
+        <section>
+          <h3>Federated RSVP Schema</h3>
+          <pre><code class="hljs" data-line-numbers="0|4|6|7|9-12|10|11|13-16">
+const typeDefs = gql`
+  # Query { ... }
+  type Rsvp @key(fields: "id") {
+    id: ID!
+    member: Member! @provides(fields: "id")
+    event: Event! @provides(fields: "id")
+  }
+  extend type Member @key(fields: "id") {
+    id: ID! @external
+    rsvps: [Rsvp]
+  }
+  extend type Event @key(fields: "id") {
+    id: ID! @external
+    rsvps: [Rsvp]
+  }
+`;
+          </code></pre>
+        </section>
+
+        <section>
+          <h3>Federated RSVP Resolvers</h3>
+          <pre><code class="hljs" data-line-numbers="0|10-13|11|6-9">
+const resolvers = {
+  Query: {
+    rsvp: (_, args) => rsvpService.get(args.id),
+  },
+  Rsvp: {
+    __resolveReference:
+      (object) => rsvpService.get(object.id),
+  },
+  Member: {
+    // { id, member: { id: '<key>' }, event: { id: '<event_id>'} }
+    rsvps: async ({ id }) => rsvpService.getRsvpsForUser(id),
+  },
+  Event: {
+    rsvps: async ({ id }) => rsvpService.getRsvpsForEvent(id),
+  }
+};
+          </code></pre>
+        </section>
+
+        <section>
+          <h3>Federated Gateway</h3>
+          <ul>
+              <li class="fragment">A gateway is a special GraphQL server</li>
+              <li class="fragment">Acts as a composite "edge" for clients</li>
+          </ul>
+        </section>
+
+        <section>
+          <h3>Federated Benefits</h3>
+          <ul>
+              <li class="fragment">Even cleaner separation of concerns
+                <ul>
+                    <li class="fragment">Resolver AND schema are declared together</li>
+                </ul>
+              </li>
+              <li class="fragment">Graph parts deployed as microservices</li>
+              <li class="fragment">ApolloManager makes federated schema updates easy</li>
+          </ul>
+        </section>
+
+        <section>
+          <h3>Federated Drawbacks</h3>
+          <ul>
+              <li class="fragment">All the common drawbacks of microservices
+                <ul>
+                    <li class="fragment">Distributed tracing & observability</li>
+                    <li class="fragment">Security harder</li>
+                    <li class="fragment">Additional complexity</li>
+                </ul>
+              </li>
+              <li class="fragment">More care is needed to avoid N+1 queries
+                <ul>
+                    <li class="fragment">Same solution as before: <strong class="fragment">Use DataProviders</strong>
+                      <ul>
+                          <li class="fragment">Using these at edge already, and should elsewhere</li>
+                          <li class="fragment">(More on those next time)</li>
+                      </ul>
+                    </li>
+                </ul>
+              </li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Recap</h2>
+        </section>
+
+        <section>
+          <h3>Recap</h3>
+          <ul>
+              <li class="fragment">Resolver by schema not scalable</li>
+              <li class="fragment">Resolver by entity more scalable
+                <ul>
+                    <li class="fragment">Better evolutionary path</li>
+                    <li class="fragment">About as difficult as by schema</li>
+                </ul>
+              </li>
+              <li class="fragment">Federation most flexible, but most complicated
+                <ul>
+                    <li class="fragment">Good for edge <=> internal "classic" GraphQL</li>
+                    <li class="fragment">Not as useful for splitting non "classic" GraphQL (yet)</li>
+                </ul>
+              </li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>End</h2>
+          <ul>
+              <li>Working demos: </li>
+              <li><a href="https://www.apollographql.com/docs/apollo-server/federation/introduction/">Apollo Federation</a></li>
+          </ul>
+        </section>
+			</div>
+		</div>
+
+		<script src="js/reveal.js"></script>
+
+		<script>
+			// More info about config & dependencies:
+			// - https://github.com/hakimel/reveal.js#configuration
+      // - https://github.com/hakimel/reveal.js#dependencies
+      Reveal.addEventListener( 'ready', () => {
+        // uncomment to hide transitions
+//        Array.prototype.forEach.call(document.querySelectorAll('[class=fragment]'), function(ele){ ele.className = 'fragment0'; });
+      });
+			Reveal.initialize({
+				hash: true,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+          { src: 'plugin/markdown/markdown.js',
+            // condition: function() { return !!document.querySelector( '[data-markdown]' ); },
+            // callback: function() {
+            //   Array.prototype.forEach.call(document.querySelectorAll('section ol li'), function(ele){ ele.className = 'fragment'; });
+            // }
+          },
+					{ src: 'plugin/highlight/highlight.js' },
+					{ src: 'plugin/notes/notes.js', async: true }
+				]
+      });
+		</script>
+	</body>
+</html>

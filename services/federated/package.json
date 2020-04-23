@@ -1,0 +1,21 @@
+{
+  "name": "@meetup/gateway",
+  "main": "gateway.js",
+  "version": "0.0.0",
+  "scripts": {
+    "start-gateway": "nodemon gateway.js",
+    "start-service-member": "nodemon ../member/main.js",
+    "start-service-event": "nodemon ../event/main.js",
+    "start-service-rsvp": "nodemon ../rsvp/main.js",
+    "start-services": "concurrently \"npm:start-service-*\""
+  },
+  "devDependencies": {
+    "nodemon": "latest",
+    "concurrently": "latest"
+  },
+  "dependencies": {
+    "@apollo/gateway": "latest",
+    "apollo-server": "latest",
+    "graphql": "latest"
+  }
+}

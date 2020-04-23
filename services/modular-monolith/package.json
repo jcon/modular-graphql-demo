@@ -1,0 +1,19 @@
+{
+  "name": "@meetup/monolithic-graphql-two",
+  "main": "monolithic.js",
+  "version": "0.0.0",
+  "scripts": {
+    "start": "nodemon monolithic.js"
+  },
+  "devDependencies": {
+    "concurrently": "latest",
+    "nodemon": "latest"
+  },
+  "dependencies": {
+    "@apollo/gateway": "latest",
+    "@meetup/member": "0.0.0",
+    "apollo-server": "latest",
+    "graphql": "latest",
+    "merge-graphql-schemas": "^1.7.8"
+  }
+}
