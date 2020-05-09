@@ -1,4 +1,7 @@
 {
     "javascript.validate.enable": false,
-    "standard.engine": "semistandard"
+    "standard.engine": "semistandard",
+    "standard.run": "onType",
+    "standard.autoFixOnSave": true,
+    "files.autoSave": "off"
 }
