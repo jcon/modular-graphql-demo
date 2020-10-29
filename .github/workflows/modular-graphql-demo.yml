@@ -8,7 +8,7 @@ on:
       - yarn.lock
 jobs:
   modular_graphql_demo_test:
-    name: Tests
+    name: Tests (rename)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-node@v1
