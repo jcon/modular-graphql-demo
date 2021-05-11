@@ -12,6 +12,6 @@
     "dataloader": "^2.0.0",
     "faker": "^4.1.0",
     "graphql": "latest",
-    "lodash": "^4.17.19"
+    "lodash": "^4.17.21"
   }
 }
